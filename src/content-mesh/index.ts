@@ -26,7 +26,7 @@ export class ContentMesh {
   constructor(config: ContentMeshConfig) {
     this._collections = this._buildCollections(config);
 
-    this._buildRelations(config.relations).forEach((relation) => relation.applyRecordUpdates());
+    this._buildRelations(config.relations).forEach(relation => relation.applyRecordUpdates());
   }
 
   /**
