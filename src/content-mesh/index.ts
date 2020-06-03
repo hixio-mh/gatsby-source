@@ -26,7 +26,7 @@ export class ContentMesh {
   constructor(config: ContentMeshConfig) {
     this._collections = this._buildCollections(config);
 
-    this._buildRelations(config.relations).forEach(relation => relation.applyRecordUpdates());
+    this._buildRelations(config.relations).forEach((relation) => relation.applyRecordUpdates());
   }
 
   /**
@@ -77,6 +77,16 @@ export class ContentMesh {
         }
 
         return bag;
+      } else if (!field_many || !field_one) {
+        log.warn(
+          `Unable to resolve Directus relation. The source and/or dest field name is 'null'. This may be the result of old, no longer valid 'relation' records.`,
+          {
+            config: relation,
+            srcTable: srcTable.name,
+            destTable: destTable.name,
+          },
+        );
+        return bag;
       }
 
       // eslint-disable-next-line @typescript-eslint/camelcase
@@ -122,9 +132,21 @@ export class ContentMesh {
         });
         log.warn('This may be a result of Directus keeping deleted junction information in internal tables.');
         return bag;
+      } else if (!a.field_one || !b.field_one || !a.junction_field || !b.junction_field) {
+        log.warn(
+          `Unable to resolve Directus junction relation. The source and/or dest field name is 'null'. This may be the result of old, no longer valid 'relation' records.`,
+          {
+            srcRelation: b,
+            destRelation: a,
+            srcTable: srcTable.name,
+            destTable: destTable.name,
+            junctionTable: junctionTable.name,
+          },
+        );
+        return bag;
       }
 
-      log.info(`Creating M2M relation for ${destTable.name} <-> ${srcTable.name}`);
+      log.info(`Creating M2M relation for ${destTable.name}.${a.field_one} <-> ${srcTable.name}.${b.field_one}`);
 
       // Key adjustment to data returned by Directus.
       // The second entry in the IRelation pair has a mismatched `field_one` name if the
