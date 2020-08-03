@@ -104,8 +104,9 @@ export class ContentMesh {
    * @param relations The original relations as returned by Directus
    */
   private _buildM2MRelations(relations: IRelation[] = []): ContentRelation[] {
-    const junctions: {
-      [junctionTableName: string]: [IRelation, IRelation?];
+    const junctionPairs: [IRelation, IRelation][] = [];
+    const unmatchedRelations: {
+      [junctionTableName: string]: IRelation[];
     } = {};
 
     relations.forEach((relation) => {
@@ -114,21 +115,34 @@ export class ContentMesh {
         return;
       }
 
-      // M2M relations are connected via the 'collection_many' junction table.
-      if (!junctions[relation.collection_many]) {
-        junctions[relation.collection_many] = [relation];
+      if (!unmatchedRelations[relation.collection_many]) {
+        unmatchedRelations[relation.collection_many] = [];
+      }
+
+      // eslint-disable-next-line @typescript-eslint/camelcase
+      const match = unmatchedRelations[relation.collection_many].find(
+        // eslint-disable-next-line @typescript-eslint/camelcase
+        ({ field_many }) => field_many === relation.junction_field,
+      );
+
+      if (match) {
+        junctionPairs.push([match, relation]);
+        unmatchedRelations[relation.collection_many] = unmatchedRelations[relation.collection_many].filter(
+          (r) => r !== match,
+        );
       } else {
-        junctions[relation.collection_many].push(relation);
+        unmatchedRelations[relation.collection_many].push(relation);
+      }
+    });
+
+    Object.keys(unmatchedRelations).forEach((k) => {
+      if (unmatchedRelations[k].length) {
+        log.warn('Found unmatched junction relations', unmatchedRelations[k]);
       }
     });
 
     // Process each junction pair.
-    return Object.values(junctions).reduce((bag, [a, b]) => {
-      if (!a || !b) {
-        log.warn('Unable to resolve Directus junction. Missing junction information.', { a, b });
-        return bag;
-      }
-
+    return junctionPairs.reduce((bag, [a, b]) => {
       const destTable = this.getCollection(a.collection_one);
       const srcTable = this.getCollection(b.collection_one);
       const junctionTable = this.getCollection(a.collection_many);
