@@ -56,10 +56,10 @@ export abstract class ContentRelation {
   }
 
   public applyRecordUpdates(): void {
-    this._updateTable(this._srcTable, 'src');
+    this._updateTable(this._destTable, 'dest');
 
     if (!this._isSelfJoin()) {
-      this._updateTable(this._destTable, 'dest');
+      this._updateTable(this._srcTable, 'src');
     }
   }
 
