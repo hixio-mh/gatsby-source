@@ -104,31 +104,7 @@ export class ContentMesh {
    * @param relations The original relations as returned by Directus
    */
   private _buildM2MRelations(relations: IRelation[] = []): ContentRelation[] {
-    const junctions: {
-      [junctionTableName: string]: [IRelation, IRelation?];
-    } = {};
-
-    relations.forEach((relation) => {
-      // Only process M2M, non-internal relations
-      if (!this._shouldProcessRelation(relation, 'm2m')) {
-        return;
-      }
-
-      // M2M relations are connected via the 'collection_many' junction table.
-      if (!junctions[relation.collection_many]) {
-        junctions[relation.collection_many] = [relation];
-      } else {
-        junctions[relation.collection_many].push(relation);
-      }
-    });
-
-    // Process each junction pair.
-    return Object.values(junctions).reduce((bag, [a, b]) => {
-      if (!a || !b) {
-        log.warn('Unable to resolve Directus junction. Missing junction information.', { a, b });
-        return bag;
-      }
-
+    return this._resolveRelationPairings(relations).reduce((bag, [a, b]) => {
       const destTable = this.getCollection(a.collection_one);
       const srcTable = this.getCollection(b.collection_one);
       const junctionTable = this.getCollection(a.collection_many);
@@ -150,12 +126,18 @@ export class ContentMesh {
 
       log.info(`Creating M2M relation for ${destTable.name} <-> ${srcTable.name}`);
 
+      // Key adjustment to data returned by Directus.
+      // The second entry in the IRelation pair has a mismatched `field_one` name if the
+      // relation is a self join. This converts it to the correct value as held in the relation record
+      // with minimum ID.
+      const srcField = destTable.name === srcTable.name ? this._resolveSelfJoinSrcField(a, b) : b.field_one;
+
       bag.push(
         new JunctionContentRelation({
           destField: a.field_one,
           destJunctionField: a.junction_field,
           destTable,
-          srcField: b.field_one,
+          srcField,
           srcJunctionField: b.junction_field,
           srcTable,
           junctionTable,
@@ -165,6 +147,61 @@ export class ContentMesh {
 
       return bag;
     }, [] as ContentRelation[]);
+  }
+
+  private _resolveRelationPairings(relations: IRelation[]): [IRelation, IRelation][] {
+    const relationSets: [IRelation, IRelation][] = [];
+    const unmatchedRelations: {
+      [junctionTableName: string]: IRelation[];
+    } = {};
+
+    // Sort relations by ID to ensure we processes them
+    // sequentially. Required for M2M self joins to work correctly.
+    relations.forEach((relation) => {
+      // Only process M2M, non-internal relations
+      if (!this._shouldProcessRelation(relation, 'm2m')) {
+        return;
+      }
+
+      if (!unmatchedRelations[relation.collection_many]) {
+        unmatchedRelations[relation.collection_many] = [];
+      }
+
+      // A matching relation pair has the same 'collection_many' (junction table),
+      // and the 'junction_field' for one matches the 'field_many' for the other.
+      // A critical assumption for matching m2mrelation entries is that they are AJDACENT
+      // to each other in sorted order, indicated by their IDs.
+      const match = unmatchedRelations[relation.collection_many].find(
+        (test) =>
+          relation.field_many === test.junction_field &&
+          relation.junction_field === test.field_many &&
+          Math.abs(relation.id - test.id) === 1,
+      );
+
+      if (match) {
+        relationSets.push([match, relation]);
+        unmatchedRelations[relation.collection_many] = unmatchedRelations[relation.collection_many].filter(
+          ({ id }) => id !== match.id,
+        );
+      } else {
+        unmatchedRelations[relation.collection_many].push(relation);
+      }
+    });
+
+    Object.keys(unmatchedRelations).forEach((k) => {
+      if (unmatchedRelations[k].length) {
+        log.warn(
+          'Unable to resolve some M2M relations. No matching relation records were found.',
+          unmatchedRelations[k],
+        );
+      }
+    });
+
+    return relationSets;
+  }
+
+  private _resolveSelfJoinSrcField(a: IRelation, b: IRelation): string {
+    return a.id < b.id ? a.field_one : b.field_one;
   }
 
   private _buildFileRelations(): ContentRelation[] {
