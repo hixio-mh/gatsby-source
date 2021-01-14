@@ -40,7 +40,7 @@
     "@directus/sdk-js": "^6.3.0",
     "colors": "^1.4.0",
     "gatsby-node-helpers": "^0.3.0",
-    "gatsby-source-filesystem": "^2.6.1",
+    "gatsby-source-filesystem": "^2.8.1",
     "pluralize": "^8.0.0"
   },
   "devDependencies": {
