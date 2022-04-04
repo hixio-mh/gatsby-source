@@ -14,7 +14,9 @@
     "lint": "eslint . --ext .ts && prettier --check \"**/*.{js,ts,json,md,yml,yaml}\"",
     "format": "prettier --write \"**/*.{js,ts,json,md,yml,yaml}\"",
     "release": "npm version -m \":rocket: Release %s\"",
-    "postrelease": "git push --follow-tags"
+    "postrelease": "git push --follow-tags",
+    "prepare": "yarn run snyk-protect",
+    "snyk-protect": "snyk-protect"
   },
   "repository": {
     "type": "git",
@@ -41,7 +43,8 @@
     "colors": "^1.4.0",
     "gatsby-node-helpers": "^0.3.0",
     "gatsby-source-filesystem": "^2.6.1",
-    "pluralize": "^8.0.0"
+    "pluralize": "^8.0.0",
+    "@snyk/protect": "latest"
   },
   "devDependencies": {
     "@types/jest": "^26.0.8",
@@ -66,5 +69,6 @@
   },
   "lint-staged": {
     "**/*.{js,ts,json,md,yml,yaml}": "prettier --write"
-  }
+  },
+  "snyk": true
 }
